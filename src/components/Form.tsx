@@ -9,6 +9,14 @@ interface formElement {
     onChange : ChangeEventHandler<HTMLInputElement>
 }
 
+interface Entry {
+    key : number,
+    attempts : number,
+    rand : number,
+    target : number,
+    isMatch : boolean,
+}
+
 interface IState {
     [key : string] : any,
     formElements: {
@@ -21,7 +29,7 @@ interface IState {
     isRun : boolean,
     numNo : number,
     numYes : number,
-    entries : Array<JSX.Element>,
+    entries : Array<Entry>,
     interval : NodeJS.Timeout,
 }
 
@@ -70,7 +78,6 @@ export default class Form extends Component<{}, IState> {
         }
             
         this.handleChange = this.handleChange.bind(this);
-        this.handleSubmit = this.handleSubmit.bind(this);
         this.checkForEmptyFields = this.checkForEmptyFields.bind(this);
         this.generateFormElements = this.generateFormElements.bind(this);
     }
@@ -80,8 +87,8 @@ export default class Form extends Component<{}, IState> {
             const rand = Math.floor(Math.random() * (this.state.formElements.max.value - this.state.formElements.min.value + 1) + this.state.formElements.min.value);
             const match = rand === this.state.formElements.target.value;
             const attempts = this.state.numNo + this.state.numYes;
-            const newEntry = <tr key={this.state.entries.length}><td>{attempts}</td><td>{rand}</td><td>{this.state.formElements.target.value}</td><td>{match ? 'yes' : 'no'}</td></tr>;
-            
+            const newEntry = {key: this.state.entries.length, target: this.state.formElements.target.value, isMatch: match, attempts, rand,}
+
             if(match){
                 this.setState({numYes: this.state.numYes+1, entries: [...this.state.entries, newEntry]})
             } else {
@@ -135,10 +142,6 @@ export default class Form extends Component<{}, IState> {
         }
     }
 
-    private handleSubmit = (e:any) => {
-        e.preventDefault();
-    }
-
     private handleClick = () => {
         this.setState({btnDisabled: true, isRun: true});
     }
@@ -156,35 +159,49 @@ export default class Form extends Component<{}, IState> {
         return (
             <div>
                 <div>
-                    {this.state.showError ? <span>Type a number</span> : ""}
-                    <form onSubmit={this.handleSubmit}>
+                    {this.state.showError ? <span className="text-danger">Type a number</span> : ""}
+                    <form>
                         {this.generateFormElements()}
-                        <button onClick={this.handleClick} disabled={this.state.btnDisabled}>Run Target</button>
+                        <button onClick={this.handleClick} disabled={this.state.btnDisabled} className="btn">Run Target</button>
                     </form>
                 </div>
                 <hr/>
                 {this.state.isRun ?
-                <div style={{display: 'flex'}}>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Attempt#</th>
-                                <th>Current Random Number</th>
-                                <th>Target Number</th>
-                                <th>Is Match</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {this.state.entries}
-                        </tbody>
-                    </table>
-                    <PieChart
-                        label={({ dataEntry }) => dataEntry.title}
-                        data={[
-                            { label:'yes', title: 'Yes', value: this.state.numYes, color: '#6B8E23' },
-                            { label:'no', title: 'No', value: this.state.numNo, color: '#C13C37' },
-                        ]}
-                    />
+                <div className="container">
+                    <div className="row">
+                        <div className="col-6" >
+                            <div style={{overflowY:"auto", height:"80vh"}}>
+                                <table className="table table-striped table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>Attempt#</th>
+                                            <th>Current Random Number</th>
+                                            <th>Target Number</th>
+                                            <th>Is Match</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {this.state.entries.map((e)=>{
+                                            return <tr key={e.key}><td>{e.attempts}</td><td>{e.rand}</td><td>{e.target}</td><td>{e.isMatch ? 'yes' : 'no'}</td></tr>;
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div className="col-6">
+                            <PieChart
+                                label={({ dataEntry }) => {
+                                    if(dataEntry.value === 0)
+                                        return "";
+                                    return dataEntry.title + " " + dataEntry.value;
+                                }}
+                                data={[
+                                    { label:'yes', title: 'Yes', value: this.state.numYes, color: '#6B8E23' },
+                                    { label:'no', title: 'No', value: this.state.numNo, color: '#C13C37' },
+                                ]}
+                            />
+                        </div>
+                    </div>
                 </div>
                 :
                 ""
