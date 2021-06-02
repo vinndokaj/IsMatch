@@ -1,16 +1,28 @@
-import React, { Component } from 'react'
+import React, { ChangeEventHandler, Component } from 'react'
 import { PieChart } from 'react-minimal-pie-chart';
 
+interface formElement {
+    value : number,
+    text : string,
+    type : string,
+    formName : string,
+    onChange : ChangeEventHandler<HTMLInputElement>
+}
+
 interface IState {
-    min : number,
-    max : number,
-    target : number,
+    [key : string] : any,
+    formElements: {
+        min : formElement,
+        max : formElement,
+        target : formElement,
+    },
     btnDisabled : boolean,
     showError : boolean,
     isRun : boolean,
     numNo : number,
     numYes : number,
     entries : Array<JSX.Element>,
+    interval : NodeJS.Timeout,
 }
 
 const RESET_ENTRIES = {
@@ -20,35 +32,55 @@ const RESET_ENTRIES = {
 }
 
 export default class Form extends Component<{}, IState> {
-    //compiler auto generated this idk what the best wat to achieve this
-    //with typescript is 
-    interval!: NodeJS.Timeout;
 
     public constructor(props: {}){
         super(props);
         this.state = {
-            min: NaN,
-            max: NaN,
+            formElements : {
+                min: {
+                    value : NaN,
+                    text : "Minimum: ",
+                    type : "text",
+                    formName : "min",
+                    onChange : this.handleChange
+                },
+                max: {
+                    value : NaN,
+                    text : "Maximum: ",
+                    type : "text",
+                    formName : "max",
+                    onChange : this.handleChange
+                },
+                target: {
+                    value : NaN,
+                    text : "Target: ",
+                    type : "text",
+                    formName : "target",
+                    onChange : this.handleChange
+                },
+            },
             target: NaN,
             btnDisabled: true,
             showError: true,
             isRun: false,
             numNo: 0,
             numYes: 0,
-            entries: []
+            entries: [],
+            interval: setInterval(()=>{}, 0),
         }
             
         this.handleChange = this.handleChange.bind(this);
         this.handleSubmit = this.handleSubmit.bind(this);
         this.checkForEmptyFields = this.checkForEmptyFields.bind(this);
+        this.generateFormElements = this.generateFormElements.bind(this);
     }
 
-    tick() {
+    private tick() {
         if(this.state.isRun){
-            const rand = Math.floor(Math.random() * (this.state.max - this.state.min + 1) + this.state.min);
-            const match = rand === this.state.target;
+            const rand = Math.floor(Math.random() * (this.state.formElements.max.value - this.state.formElements.min.value + 1) + this.state.formElements.min.value);
+            const match = rand === this.state.formElements.target.value;
             const attempts = this.state.numNo + this.state.numYes;
-            const newEntry = <tr><td>{attempts}</td><td>{rand}</td><td>{this.state.target}</td><td>{match ? 'yes' : 'no'}</td></tr>;
+            const newEntry = <tr key={this.state.entries.length}><td>{attempts}</td><td>{rand}</td><td>{this.state.formElements.target.value}</td><td>{match ? 'yes' : 'no'}</td></tr>;
             
             if(match){
                 this.setState({numYes: this.state.numYes+1, entries: [...this.state.entries, newEntry]})
@@ -58,17 +90,17 @@ export default class Form extends Component<{}, IState> {
         }
     }
 
-    componentDidMount() {
-        this.interval = setInterval(() => this.tick(), 1000);
+    public componentDidMount() {
+        this.setState({interval : setInterval(() => this.tick(), 1000)});
     }
 
-    componentWillUnmount() {
-        clearInterval(this.interval);
+    public componentWillUnmount() {
+        clearInterval(this.state.interval);
     }
 
     //called when a field is modified checks for empty fields and updates error and button accordingly
     private checkForEmptyFields = () => {
-        if(isNaN(this.state.max) || isNaN(this.state.min) || isNaN(this.state.target)){
+        if(isNaN(this.state.formElements.max.value) || isNaN(this.state.formElements.min.value) || isNaN(this.state.formElements.target.value)){
             this.setState({showError: true, btnDisabled: true, isRun: false, ...RESET_ENTRIES });
         } else {
             this.setState({showError: false, btnDisabled: false, isRun: false, ...RESET_ENTRIES});
@@ -76,17 +108,19 @@ export default class Form extends Component<{}, IState> {
     }
 
     private handleChange = (event: any) => {
-        //enums for this? output will always be min max or target but compiler doesnt like all 3
-        const name = event.target.name as 'min' //| 'max' | 'target'
+        const name = event.target.name as 'min' | 'max' | 'target'
         const value = +event.target.value
+        let formData = this.state.formElements;
 
         //if user clears input set state
         //else if new value is a valid number set state
         //else its invalid then check if type a number is already persisting if not persist for 1500ms
         if (event.target.value === ""){
-            this.setState({ [name]: NaN, showError: true, btnDisabled: true, isRun: false, ...RESET_ENTRIES });
+            formData[name].value = NaN;
+            this.setState({ formElements : formData, showError: true, btnDisabled: true, isRun: false, ...RESET_ENTRIES });
         } else if(!isNaN(value)){
-            this.setState({ [name]: value}, () => {
+            formData[name].value = value;
+            this.setState({ formElements : formData }, () => {
                 this.checkForEmptyFields()
             });
         } else {
@@ -109,15 +143,22 @@ export default class Form extends Component<{}, IState> {
         this.setState({btnDisabled: true, isRun: true});
     }
 
-    render() {
+    private generateFormElements = () => {
+        const allElements : any = [];
+        for(const [key, data] of Object.entries(this.state.formElements)){
+            allElements.push(<label key={key}>{data.text} <input type={data.type} name={data.formName} value={isNaN(data.value) ? "" : data.value} onChange={data.onChange} /></label>);
+        }
+
+        return allElements;
+    }
+
+    public render() {
         return (
             <div>
                 <div>
                     {this.state.showError ? <span>Type a number</span> : ""}
                     <form onSubmit={this.handleSubmit}>
-                        Minimum: <input type="text" name="min" value={isNaN(this.state.min) ? "" : this.state.min} onChange={this.handleChange}/>
-                        Maximum: <input type="text" name="max" value={isNaN(this.state.max) ? "" : this.state.max} onChange={this.handleChange}/>
-                        Target: <input type="text" name="target" value={isNaN(this.state.target) ? "" : this.state.target} onChange={this.handleChange}/>
+                        {this.generateFormElements()}
                         <button onClick={this.handleClick} disabled={this.state.btnDisabled}>Run Target</button>
                     </form>
                 </div>
